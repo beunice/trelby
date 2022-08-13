@@ -1,4 +1,4 @@
-from error import *
+from error import MiscError,TrelbyError
 import misc
 import util
 
@@ -6,7 +6,7 @@ import os
 import tempfile
 
 if "TRELBY_TESTING" in os.environ:
-    import mock
+    import unittest.mock as mock
     wx = mock.Mock()
 else:
     import wx
@@ -31,7 +31,7 @@ def listBoxSelect(lb, index):
 # cmp(cdata1, cdata2).
 def listBoxAdd(lb, name, cdata):
     for i in range(lb.GetCount()):
-        if cmp(cdata, lb.GetClientData(i)) < 0:
+        if util.cmpfunc(cdata, lb.GetClientData(i)) < 0:
             lb.InsertItems([name], i)
             lb.SetClientData(i, cdata)
 
@@ -66,7 +66,7 @@ def createStockButton(parent, label):
 # click event to the same callback function on the buggy platforms.
 def btnDblClick(btn, func):
     if misc.isUnix:
-        wx.EVT_LEFT_DCLICK(btn, func)
+        btn.Bind(wx.EVT_LEFT_DCLICK, func)
 
 # show PDF document 'pdfData' in an external viewer program. writes out a
 # temporary file, first deleting all old temporary files, then opens PDF
@@ -81,15 +81,16 @@ def showTempPDF(pdfData, cfgGl, mainFrame):
                                             suffix = ".pdf")
 
             try:
-                os.write(fd, pdfData)
+                os.write(fd, pdfData.encode("UTF-8"))
             finally:
                 os.close(fd)
 
             util.showPDF(filename, cfgGl, mainFrame)
 
-        except IOError, (errno, strerror):
+        except IOError as xxx_todo_changeme:
+            (errno, strerror) = xxx_todo_changeme.args
             raise MiscError("IOError: %s" % strerror)
 
-    except TrelbyError, e:
+    except TrelbyError as e:
         wx.MessageBox("Error writing temporary PDF file: %s" % e,
                       "Error", wx.OK, mainFrame)

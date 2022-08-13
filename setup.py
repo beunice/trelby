@@ -32,12 +32,13 @@ class build_scripts(_build_scripts):
             script = convert_path("bin/trelby")
             outfile = os.path.join(self.build_dir, os.path.basename(script))
 
-            # abuse fileinput to replace a line in bin/trelby
-            for line in fileinput.input(outfile, inplace = 1):
-                if """sys.path.insert(0, "src")""" in line:
-                    line = """sys.path.insert(0, "%s/src")""" % libDir
-
-                print line,
+            in_file = open(script, "rt")
+            text = in_file.read()
+            text = text.replace('src', libDir + 'src')
+            in_file.close()
+            out_file = open(outfile, "wt")
+            out_file.write(text)
+            out_file.close()
 
 class bdist_rpm(_bdist_rpm):
     """bdist_rpm command
@@ -98,11 +99,11 @@ class nsis(Command):
     def run(self):
 
         try:
-            import _winreg
-            regPathKey = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, r"Software\NSIS")
-            regPathValue, regPathType = _winreg.QueryValueEx(regPathKey, "")
+            import winreg
+            regPathKey = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"Software\NSIS")
+            regPathValue, regPathType = winreg.QueryValueEx(regPathKey, "")
 
-            if regPathType != _winreg.REG_SZ:
+            if regPathType != winreg.REG_SZ:
                 raise TypeError
         except:
             raise Exception("There was an error reading the registry key for NSIS.\n"
@@ -146,7 +147,7 @@ if sys.platform == "win32":
     # (which we're only using under Linux for stuff like our .desktop file and
     # man page that go to system directories), so we'll just use it instead
     # of package_data.
-    for path, files in packageData.iteritems():
+    for path, files in packageData.items():
         for file in files:
             dataFile = os.path.normpath(os.path.join(path, file))
             dataFiles.append((os.path.dirname(dataFile),glob.glob(dataFile)))

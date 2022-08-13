@@ -1,3 +1,8 @@
+*~
 *.pyc
 *.pyo
 .trelby/
+*.trelby
+.tox/
+MANIFEST
+.pybuild/

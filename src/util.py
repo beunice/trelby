@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from error import *
-
-import datetime
 import glob
 import gzip
 import misc
@@ -10,11 +7,10 @@ import os
 import re
 import tempfile
 import time
-
-import StringIO
+import functools
 
 if "TRELBY_TESTING" in os.environ:
-    import mock
+    import unittest.mock as mock
     wx = mock.Mock()
 else:
     import wx
@@ -65,12 +61,12 @@ _identity_tbl = ""
 # map some fancy unicode characters to their nearest ASCII/Latin-1
 # equivalents so when people import text it's not mangled to uselessness
 _fancy_unicode_map = {
-    ord(u"‘") : u"'",
-    ord(u"’") : u"'",
-    ord(u"“") : u'"',
-    ord(u"”") : u'"',
-    ord(u"—") : u"--",
-    ord(u"–") : u"-",
+#    ord('‘') : "'",
+#    ord('’') : "'",
+#    ord('“') : '"',
+#    ord('”') : '"',
+#    ord('—') : "--",
+#    ord('–') : "-",
     }
 
 # permanent memory DC to get text extents etc
@@ -88,7 +84,7 @@ def init(doWX = True):
         tmpUpper.append(i)
         tmpLower.append(i)
 
-    for k, v in _iso_8859_1_map.iteritems():
+    for k, v in _iso_8859_1_map.items():
         tmpUpper[k] = v
         tmpLower[v] = k
 
@@ -122,15 +118,15 @@ def init(doWX = True):
         # dunno if the bitmap needs to be big enough to contain the text
         # we're measuring...
         permDc = wx.MemoryDC()
-        permDc.SelectObject(wx.EmptyBitmap(512, 32))
+        permDc.SelectObject(wx.Bitmap(512, 32))
 
 # like string.upper/lower/capitalize, but we do our own charset-handling
 # that doesn't need locales etc
 def upper(s):
-    return s.translate(_to_upper)
+    return s.upper()
 
 def lower(s):
-    return s.translate(_to_lower)
+    return s.lower()
 
 def capitalize(s):
     return upper(s[:1]) + s[1:]
@@ -143,13 +139,13 @@ def toLatin1(s):
 # return 's', which must be a string of ISO-8859-1 characters, converted
 # to UTF-8.
 def toUTF8(s):
-    return unicode(s, "ISO-8859-1").encode("UTF-8")
+    return s
 
 # return 's', which must be a string of UTF-8 characters, converted to
 # ISO-8859-1, with characters not representable in ISO-8859-1 discarded
 # and any invalid UTF-8 sequences ignored.
 def fromUTF8(s):
-    return s.decode("UTF-8", "ignore").encode("ISO-8859-1", "ignore")
+    return s
 
 # returns True if kc (key-code) is a valid character to add to the script.
 def isValidInputChar(kc):
@@ -162,7 +158,7 @@ def isValidInputChar(kc):
 # return s with all non-valid input characters converted to valid input
 # characters, except form feeds, which are just deleted.
 def toInputStr(s):
-    return s.translate(_input_tbl, "\f")
+    return str(s).replace("\f", "").replace("\t", "|")
 
 # replace fancy unicode characters with their ASCII/Latin1 equivalents.
 def removeFancyUnicode(s):
@@ -171,7 +167,7 @@ def removeFancyUnicode(s):
 # transform external input (unicode) into a form suitable for having in a
 # script
 def cleanInput(s):
-    return toInputStr(toLatin1(removeFancyUnicode(s)))
+    return s
 
 # replace s[start:start + width] with toInputStr(new) and return s
 def replace(s, new, start, width):
@@ -179,7 +175,9 @@ def replace(s, new, start, width):
 
 # delete all characters in 'chars' (a string) from s and return that.
 def deleteChars(s, chars):
-    return s.translate(_identity_tbl, chars)
+    for char in chars:
+        s = s.replace(char, '')
+    return s
 
 # returns s with all possible different types of newlines converted to
 # unix newlines, i.e. a single "\n"
@@ -481,7 +479,7 @@ def setWH(ctrl, w = -1, h = -1):
         size.height = h
 
     ctrl.SetMinSize(wx.Size(size.width, size.height))
-    ctrl.SetClientSizeWH(size.width, size.height)
+    ctrl.SetClientSize(size.width, size.height)
 
 # wxMSW doesn't respect the control's min/max values at all, so we have to
 # implement this ourselves
@@ -504,7 +502,7 @@ def isWordBoundary(c):
 
 # return True if c is an alphanumeric character
 def isAlnum(c):
-    return unicode(c, "ISO-8859-1").isalnum()
+    return str(c).isalnum()
 
 # make sure s (unicode) ends in suffix (case-insensitively) and return
 # that. suffix must already be lower-case.
@@ -552,26 +550,29 @@ def multiFind(s, seq):
 
     return False
 
+def cmpfunc(a, b):
+    return (a > b) - (a < b)
+
 # put everything from dictionary d into a list as (key, value) tuples,
 # then sort the list and return that. by default sorts by "desc(value)
 # asc(key)", but a custom sort function can be given
 def sortDict(d, sortFunc = None):
     def tmpSortFunc(o1, o2):
-        ret = cmp(o2[1], o1[1])
+        ret = cmpfunc(o2[1], o1[1])
 
         if ret != 0:
             return ret
         else:
-            return cmp(o1[0], o2[0])
+            return cmpfunc(o1[0], o2[0])
 
     if sortFunc == None:
         sortFunc = tmpSortFunc
 
     tmp = []
-    for k, v in d.iteritems():
+    for k, v in d.items():
         tmp.append((k, v))
 
-    tmp.sort(sortFunc)
+    tmp = sorted(tmp, key=functools.cmp_to_key(sortFunc))
 
     return tmp
 
@@ -795,12 +796,12 @@ class Key:
     #        34:  Shift
 
     def toInt(self):
-        return (self.kc & 0xFFFFFFFFL) | (self.ctrl << 32L) | \
-               (self.alt << 33L) | (self.shift << 34L)
+        return (self.kc & 0xFFFFFFFF) | (self.ctrl << 32) | \
+               (self.alt << 33) | (self.shift << 34)
 
     @staticmethod
     def fromInt(val):
-        return Key(val & 0xFFFFFFFFL, (val >> 32) & 1, (val >> 33) & 1,
+        return Key(val & 0xFFFFFFFF, (val >> 32) & 1, (val >> 33) & 1,
                    (val >> 34) & 1)
 
     # construct from wx.KeyEvent
@@ -872,14 +873,15 @@ def loadFile(filename, frame, maxSize = -1):
     ret = None
 
     try:
-        f = open(misc.toPath(filename), "rb")
+        f = open(misc.toPath(filename), "r", encoding='UTF-8')
 
         try:
             ret = f.read(maxSize)
         finally:
             f.close()
 
-    except IOError, (errno, strerror):
+    except IOError as xxx_todo_changeme:
+        (errno, strerror) = xxx_todo_changeme.args
         wx.MessageBox("Error loading file '%s': %s" % (
                 filename, strerror), "Error", wx.OK, frame)
         ret = None
@@ -895,25 +897,16 @@ def loadMaybeCompressedFile(filename, frame):
         filename += ".gz"
         doGz = True
 
-    s = loadFile(filename, frame)
-    if s is None:
-        return None
-
     if not doGz:
+        s = loadFile(filename, frame)
         return s
 
-    buf = StringIO.StringIO(s)
-
-    # python's gzip module throws almost arbitrary exceptions in various
-    # error conditions, so the only safe thing to do is to catch
-    # everything.
     try:
-        f = gzip.GzipFile(mode = "r", fileobj = buf)
-        return f.read()
+        f = gzip.open(filename, 'r')
+        return f.read().decode('utf-8')
     except:
         wx.MessageBox("Error loading file '%s': Decompression failed" % \
                           filename, "Error", wx.OK, frame)
-
         return None
 
 # write 'data' to 'filename', popping up a messagebox using 'frame' as
@@ -923,13 +916,17 @@ def writeToFile(filename, data, frame):
         f = open(misc.toPath(filename), "wb")
 
         try:
-            f.write(data)
+            if isinstance(data, str):
+                f.write(data.encode("UTF-8"))
+            else:
+                f.write(data)
         finally:
             f.close()
 
         return True
 
-    except IOError, (errno, strerror):
+    except IOError as xxx_todo_changeme1:
+        (errno, strerror) = xxx_todo_changeme1.args
         wx.MessageBox("Error writing file '%s': %s" % (
                 filename, strerror), "Error", wx.OK, frame)
 
@@ -958,8 +955,8 @@ def fileExists(filename):
 # filename, otherwise None.
 def findFile(filename, dirs):
     for d in dirs:
-        if d[-1] != u"/":
-            d += u"/"
+        if d[-1] != "/":
+            d += "/"
 
         path = d + filename
 
@@ -977,11 +974,11 @@ def findFileInPath(filename):
 
     # I have no idea how one should try to cope if PATH contains entries
     # with non-UTF8 characters, so just ignore any errors
-    dirs = unicode(dirs, "UTF-8", "ignore").split(u":")
+    dirs = str(dirs).split(":")
 
     # only accept absolute paths. this strips out things like "~/bin/"
     # etc.
-    dirs = [d for d in dirs if d and d[0] == u"/"]
+    dirs = [d for d in dirs if d and d[0] == "/"]
 
     return findFile(filename, dirs)
 
@@ -999,32 +996,32 @@ class TimerDev:
     def __del__(self):
         self.t = time.time() - self.t
         self.__class__.nestingLevel -= 1
-        print "%s%s took %.5f seconds" % (" " * self.__class__.nestingLevel,
-                                          self.msg, self.t)
+        print("%s%s took %.5f seconds" % (" " * self.__class__.nestingLevel,
+                                          self.msg, self.t))
 
 # Get the Windows default PDF viewer path from registry and return that,
 # or None on errors.
 def getWindowsPDFViewer():
     try:
-        import _winreg
+        import winreg
 
         # HKCR/.pdf: gives the class of the PDF program.
         # Example : AcroRead.Document or FoxitReader.Document
 
-        key = _winreg.OpenKey(_winreg.HKEY_CLASSES_ROOT, ".pdf")
-        pdfClass = _winreg.QueryValue(key, "")
+        key = winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, ".pdf")
+        pdfClass = winreg.QueryValue(key, "")
 
         # HKCR/<class>/shell/open/command: the path to the PDF viewer program
         # Example: "C:\Program Files\Acrobat 8.0\acroread.exe" "%1"
 
-        key2 = _winreg.OpenKey(
-            _winreg.HKEY_CLASSES_ROOT, pdfClass + r"\shell\open\command")
+        key2 = winreg.OpenKey(
+            winreg.HKEY_CLASSES_ROOT, pdfClass + r"\shell\open\command")
 
         # Almost every PDF program out there accepts passing the PDF path
         # as the argument, so we don't parse the arguments from the
         # registry, just get the program path.
 
-        path = _winreg.QueryValue(key2, "").split('"')[1]
+        path = winreg.QueryValue(key2, "").split('"')[1]
 
         if fileExists(path):
             return path
@@ -1043,7 +1040,7 @@ def getWindowsUnicodeEnvVar(name):
     if n == 0:
         return None
 
-    buf = ctypes.create_unicode_buffer(u"\0" * n)
+    buf = ctypes.create_unicode_buffer("\0" * n)
     ctypes.windll.kernel32.GetEnvironmentVariableW(name, buf, n)
 
     return buf.value

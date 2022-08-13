@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # ut:ignore
 
 # FIXME: handle KeyboardInterrupt so testing can be aborted
@@ -9,8 +9,6 @@ import os
 import re
 import sys
 import time
-import traceback
-import types
 
 VERSION = 0.1
 
@@ -34,7 +32,7 @@ def main():
 def getTestFuncs(filename):
     funcs = {}
 
-    f = open(filename, "r")
+    f = open(filename, "r", encoding="ISO-8859-1")
 
     for line in f:
         mo = re.match("def (test[a-zA-Z0-9_]*)\(", line)
@@ -54,7 +52,7 @@ def getTestFuncs(filename):
 # results in a dictionary which is returned. a missing '=val' part is
 # indicated by None as the key's value.
 def getFlags(filename):
-    fp = open(filename, "r")
+    fp = open(filename, "r", encoding="ISO-8859-1")
 
     ret = {}
     while 1:
@@ -94,11 +92,11 @@ def doTest(opts):
         funcs = [opts.func]
 
     if not funcs:
-        print "[--- No tests found in %s ---]" % name
+        print("[--- No tests found in %s ---]" % name)
         sys.exit(1)
 
     for f in funcs:
-        print "[Testing %s:%s]" % (name, f)
+        print("[Testing %s:%s]" % (name, f))
         getattr(mod, f)()
 
     return 0
@@ -123,7 +121,7 @@ def doTests(opts):
     for fname in fnames:
         flags = getFlags(fname)
 
-        if flags.has_key("ignore"):
+        if "ignore" in flags:
             continue
 
         # strip .py suffix
@@ -141,7 +139,7 @@ def doTests(opts):
             funcs = getTestFuncs(fname)
 
             if not funcs:
-                print "[--- No tests found in %s ---]" % name
+                print("[--- No tests found in %s ---]" % name)
                 cntTotal += 1
                 cntFailed += 1
 
@@ -161,8 +159,8 @@ def doTests(opts):
     else:
         s = "tests"
 
-    print "Tested %d %s, out of which %d failed, in %.2f seconds" % (
-        cntTotal, s, cntFailed, t)
+    print("Tested %d %s, out of which %d failed, in %.2f seconds" % (
+        cntTotal, s, cntFailed, t))
 
     return 0 if (cntFailed == 0) else 1
 
